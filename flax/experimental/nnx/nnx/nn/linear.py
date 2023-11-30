@@ -303,8 +303,8 @@ class Linear(Module):
 
   def __init__(
     self,
-    in_features: int,
-    out_features: int,
+    features_in: int,
+    features_out: int,
     *,
     use_bias: bool = True,
     dtype: tp.Optional[Dtype] = None,
@@ -321,16 +321,16 @@ class Linear(Module):
   ):
     kernel_key = rngs.params()
     self.kernel = nnx.Param(
-      kernel_init(kernel_key, (in_features, out_features), param_dtype)
+      kernel_init(kernel_key, (features_in, features_out), param_dtype)
     )
     if use_bias:
       bias_key = rngs.params()
-      self.bias = nnx.Param(bias_init(bias_key, (out_features,), param_dtype))
+      self.bias = nnx.Param(bias_init(bias_key, (features_out,), param_dtype))
     else:
       self.bias = nnx.Param(None)
 
-    self.in_features = in_features
-    self.out_features = out_features
+    self.features_in = features_in
+    self.features_out = features_out
     self.use_bias = use_bias
     self.dtype = dtype
     self.param_dtype = param_dtype
@@ -405,8 +405,8 @@ class Conv(Module):
 
   def __init__(
     self,
-    in_features: int,
-    out_features: int,
+    features_in: int,
+    features_out: int,
     kernel_size: tp.Sequence[int],
     strides: tp.Union[None, int, tp.Sequence[int]] = 1,
     *,
@@ -438,21 +438,21 @@ class Conv(Module):
       kernel_size = tuple(kernel_size)
 
     kernel_shape = kernel_size + (
-      in_features // feature_group_count,
-      out_features,
+      features_in // feature_group_count,
+      features_out,
     )
     kernel_key = rngs.params()
     self.kernel = nnx.Param(kernel_init(kernel_key, kernel_shape, param_dtype))
 
     if use_bias:
-      bias_shape = (out_features,)
+      bias_shape = (features_out,)
       bias_key = rngs.params()
       self.bias = nnx.Param(bias_init(bias_key, bias_shape, param_dtype))
     else:
       self.bias = nnx.Param(None)
 
-    self.in_features = in_features
-    self.out_features = out_features
+    self.features_in = features_in
+    self.features_out = features_out
     self.kernel_size = kernel_size
     self.strides = strides
     self.padding = padding
@@ -543,7 +543,7 @@ class Conv(Module):
     dimension_numbers = _conv_dimension_numbers(inputs.shape)
 
     # One shared convolutional kernel for all pixels in the output.
-    assert self.in_features % self.feature_group_count == 0
+    assert self.features_in % self.feature_group_count == 0
 
     kernel = self.kernel
 

@@ -296,6 +296,19 @@ class Module(reprlib.Representable, metaclass=ModuleMeta):
 
     return CallableProxy(_create_abstract, accessesor)  # type: ignore
 
+  @classmethod
+  def create_with_state(
+    cls: type[M], update: Updates[M], *updates: Updates[M]
+  ) -> type[M]:
+    accessesor = DelayedAccessor()
+
+    def _create_with_state(accessesor, *args, **kwargs):
+      module: M = accessesor(cls.create_abstract)(*args, **kwargs)
+      module.update(update, *updates)
+      return module
+
+    return CallableProxy(_create_with_state, accessesor)  # type: ignore
+
   def clone(self: M) -> M:
     return merge(self.split())
 
@@ -479,29 +492,10 @@ class Module(reprlib.Representable, metaclass=ModuleMeta):
       reduced_value = reduce_fn(init_fn(), value)
       setattr(self, name, variable_type(reduced_value))
 
-  def for_each(
-    self, module_type: tp.Type[M], fn: tp.Callable[[M], None]
-  ) -> None:
-    visited: tp.Set[ids.UUID] = set()
-    self._on_all(module_type, fn, visited)
-
-  def _on_all(
-    self,
-    module_type: tp.Type[M],
-    fn: tp.Callable[[M], None],
-    visited: tp.Set[ids.UUID],
-  ) -> None:
-    if self._module__state.id in visited:
-      return
-
-    visited.add(self._module__state.id)
-
-    if isinstance(self, module_type):
-      fn(self)
-
-    for value in vars(self).values():
+  def iter_submodules(self) -> tp.Iterator[tuple[Path, Module]]:
+    for path, value in graph_utils.iter_nodes(self):
       if isinstance(value, Module):
-        value._on_all(module_type, fn, visited)
+        yield path, value
 
   def __init_subclass__(cls, experimental_pytree: bool = False) -> None:
     super().__init_subclass__()

@@ -126,7 +126,7 @@ y = model(jnp.ones((2, 28, 28, 1)))
 # Do some weird surgery of the stack:
 for i, layer in enumerate(model):
   if isinstance(layer, nnx.Conv):
-    model[i] = nnx.Linear(layer.in_features, layer.out_features, rngs=rngs)
+    model[i] = nnx.Linear(layer.features_in, layer.out_features, rngs=rngs)
 
 y = model(jnp.ones((2, 28, 28, 1)))
 ```

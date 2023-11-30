@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import functools
-from typing import Any, Callable, Optional, Tuple, overload
+from typing import Any, Callable, Optional, overload
 
 import jax
 import jax.numpy as jnp
@@ -38,7 +38,7 @@ from flax.experimental.nnx.nnx.nn.linear import (
 from flax.experimental.nnx.nnx.nn.normalization import LayerNorm
 
 Array = jax.Array
-Shape = Tuple[int, ...]
+Shape = tuple[int, ...]
 Dtype = Any
 
 
@@ -259,7 +259,7 @@ class MultiHeadAttention(Module):
     dtype: the dtype of the computation (default: infer from inputs and params)
     param_dtype: the dtype passed to parameter initializers (default: float32)
     qkv_features: dimension of the key, query, and value.
-    out_features: dimension of the last projection
+    features_out: dimension of the last projection
     broadcast_dropout: bool: use a broadcasted dropout along batch dims.
     dropout_rate: dropout rate
     deterministic: if false, the attention weight is masked randomly using
@@ -280,7 +280,7 @@ class MultiHeadAttention(Module):
     self,
     num_heads: int,
     features_in: int,
-    out_features: int | None = None,
+    features_out: int | None = None,
     *,
     dtype: Dtype | None = None,
     param_dtype: Dtype = jnp.float32,
@@ -292,7 +292,7 @@ class MultiHeadAttention(Module):
     bias_init: initializers.Initializer = initializers.zeros(),
     use_bias: bool = True,
     attention_fn: Callable[..., Array] = dot_product_attention,
-    decode: bool = False,
+    decode: bool | None = None,
     normalize_qk: bool = False,
     # Deprecated, will be removed.
     qkv_dot_general: DotGeneralT | None = None,
@@ -304,7 +304,7 @@ class MultiHeadAttention(Module):
     self.num_heads = num_heads
     self.features_in = features_in
     self.features_out = (
-      out_features if out_features is not None else features_in
+      features_out if features_out is not None else features_in
     )
     self.dtype = dtype
     self.param_dtype = param_dtype
@@ -384,6 +384,7 @@ class MultiHeadAttention(Module):
     mask: Optional[Array] = None,
     deterministic: Optional[bool] = None,
     dropout_rng: Optional[Array] = None,
+    decode: bool | None = None,
     rngs: rnglib.Rngs | None = None,
   ):
     ...
@@ -397,6 +398,7 @@ class MultiHeadAttention(Module):
     mask: Array | None = None,
     deterministic: bool | None = None,
     dropout_rng: Array | None = None,
+    decode: bool | None = None,
     rngs: rnglib.Rngs | None = None,
   ):
     ...
@@ -409,6 +411,7 @@ class MultiHeadAttention(Module):
     *,
     mask: Array | None = None,
     deterministic: bool | None = None,
+    decode: bool | None = None,
     rngs: rnglib.Rngs | None = None,
   ):
     """Applies multi-head dot product attention on the input data.
@@ -467,9 +470,13 @@ class MultiHeadAttention(Module):
       query = self.query_ln(query)
       key = self.key_ln(key)
 
+    decode = first_from(
+      'decode', decode, self.decode, flags.get('decode', False)
+    )
+
     # During fast autoregressive decoding, we feed one position at a time,
     # and cache the keys and values step by step.
-    if self.decode:
+    if decode:
       (
         *batch_dims,
         max_length,
@@ -544,7 +551,7 @@ class MultiHeadAttention(Module):
 
   def init_cache(self, input_shape: Shape, dtype: Dtype = jnp.float32):
     """Initializes cache for fast autoregressive decoding."""
-    cache_shape = (*input_shape[:-1], self.num_heads, self.features_out)
+    cache_shape = (*input_shape[:-1], self.num_heads, self.head_dim)
     self.cached_key = nnx.Cache(jnp.zeros(cache_shape, dtype))
     self.cached_value = nnx.Cache(jnp.zeros(cache_shape, dtype))
     self.cache_index = nnx.Cache(jnp.array(0, dtype=jnp.int32))
